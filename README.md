@@ -29,6 +29,14 @@
 - [`tasks.md`](specs/002-containerized-deployment/tasks.md)：容器化实施任务
 - [`quickstart.md`](specs/002-containerized-deployment/quickstart.md)：构建、运行、升级和验证说明
 
+主题系统的 SDD 产物位于 [`specs/003-theme-system/`](specs/003-theme-system/)：
+
+- [`spec.md`](specs/003-theme-system/spec.md)：白色/黑色主题、持久化和视觉替换需求
+- [`research.md`](specs/003-theme-system/research.md)：主题上下文、系统偏好和新视觉方向
+- [`plan.md`](specs/003-theme-system/plan.md)：React 主题基础设施和测试方案
+- [`tasks.md`](specs/003-theme-system/tasks.md)：主题重构实施任务
+- [`quickstart.md`](specs/003-theme-system/quickstart.md)：自动化与浏览器验证步骤
+
 ## Architecture
 
 ```text
@@ -47,6 +55,12 @@ Go HTTP API ── Application services ── SQLite
 ```
 
 核心业务依赖 `BotGateway` 抽象，不直接暴露 Wechaty SDK 类型。默认 `mock` 模式可在无微信账号和 Puppet token 的情况下运行测试和完整演示。
+
+## Theme
+
+管理台提供白色和黑色两种主题。登录页右上角及登录后的顶部导航均可切换主题；主动选择会保存在浏览器中，刷新后继续使用。首次访问且没有保存值时，系统采用设备的深浅色偏好。
+
+主题偏好只保存在浏览器，不会发送到后端，也不会影响管理员令牌、机器人状态或消息数据。
 
 ## Docker deployment
 
