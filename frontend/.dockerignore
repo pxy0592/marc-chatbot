@@ -1,0 +1,14 @@
+.git
+.github
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+coverage/
+*.log
+.playwright-cli/
+Dockerfile*
+README.md
+src/**/*.test.ts
+src/**/*.test.tsx

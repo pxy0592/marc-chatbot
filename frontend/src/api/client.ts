@@ -1,6 +1,6 @@
 import type { AuditEvent, Bot, BindingSession, Group, GroupMessage, OutboundMessage } from './types'
 
-export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
+export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 
 export class Client {
   constructor(private readonly token: string) {}

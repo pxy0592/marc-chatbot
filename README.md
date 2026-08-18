@@ -20,6 +20,15 @@
 - [`tasks.md`](specs/001-wechat-group-bot/tasks.md)：依赖有序实施任务
 - [`quickstart.md`](specs/001-wechat-group-bot/quickstart.md)：mock 与真实 Wechaty 验证流程
 
+容器化功能的 SDD 产物位于 [`specs/002-containerized-deployment/`](specs/002-containerized-deployment/)：
+
+- [`spec.md`](specs/002-containerized-deployment/spec.md)：容器运行、秘密配置和镜像交付需求
+- [`research.md`](specs/002-containerized-deployment/research.md)：多阶段构建、同源代理、GHCR 和权限决策
+- [`plan.md`](specs/002-containerized-deployment/plan.md)：Docker、Compose 与 CI 实施方案
+- [`contracts/`](specs/002-containerized-deployment/contracts/)：Compose 和镜像标签契约
+- [`tasks.md`](specs/002-containerized-deployment/tasks.md)：容器化实施任务
+- [`quickstart.md`](specs/002-containerized-deployment/quickstart.md)：构建、运行、升级和验证说明
+
 ## Architecture
 
 ```text
@@ -38,6 +47,64 @@ Go HTTP API ── Application services ── SQLite
 ```
 
 核心业务依赖 `BotGateway` 抽象，不直接暴露 Wechaty SDK 类型。默认 `mock` 模式可在无微信账号和 Puppet token 的情况下运行测试和完整演示。
+
+## Docker deployment
+
+前后端均提供多阶段、非 root Docker 镜像，并通过 Compose 以单一前端端口运行。SQLite 数据保存在 named volume 中，重建容器不会删除业务数据。
+
+### Build and start
+
+```bash
+cp .env.docker.example .env
+# Edit .env and replace ADMIN_TOKEN with a high-entropy value.
+
+docker compose build
+docker compose up -d --wait
+docker compose ps
+```
+
+默认管理台地址：
+
+```text
+http://localhost:8080
+```
+
+常用操作：
+
+```bash
+docker compose logs -f backend frontend
+docker compose restart backend
+docker compose down
+```
+
+`docker compose down` 不会删除 SQLite volume。只有明确需要删除所有本地业务数据时才运行：
+
+```bash
+docker compose down --volumes
+```
+
+### Use published GHCR images
+
+主分支 CI 会发布：
+
+```text
+ghcr.io/pxy0592/marc-chatbot-backend:latest
+ghcr.io/pxy0592/marc-chatbot-frontend:latest
+```
+
+在 `.env` 中设置后可直接拉取运行：
+
+```dotenv
+BACKEND_IMAGE=ghcr.io/pxy0592/marc-chatbot-backend:latest
+FRONTEND_IMAGE=ghcr.io/pxy0592/marc-chatbot-frontend:latest
+```
+
+```bash
+docker compose pull
+docker compose up -d --wait
+```
+
+Pull Request 只验证两个镜像能成功构建，不会推送镜像；提交到 `main` 或手动运行 CI 时会发布 `main`、`sha-*` 和 `latest` 标签。
 
 ## Local development
 
@@ -107,6 +174,7 @@ GitHub Actions 工作流位于 `.github/workflows/ci.yml`。它会在提交到 `
 
 - 后端模块校验、格式检查、`go vet`、竞态检测测试和服务端构建。
 - 前端锁文件安装、ESLint、Vitest 和生产构建。
+- Pull Request 镜像构建验证，以及主分支的 GHCR 镜像发布。
 
 ## Scope and safety boundaries
 
