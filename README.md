@@ -103,6 +103,11 @@ npm run lint
 npm run build
 ```
 
+GitHub Actions 工作流位于 `.github/workflows/ci.yml`。它会在提交到 `main`、针对 `main` 的 Pull Request 以及手动触发时，并行执行：
+
+- 后端模块校验、格式检查、`go vet`、竞态检测测试和服务端构建。
+- 前端锁文件安装、ESLint、Vitest 和生产构建。
+
 ## Scope and safety boundaries
 
 - MVP 支持单机器人、少量管理员和微信群文本消息。
