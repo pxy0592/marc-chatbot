@@ -1,0 +1,267 @@
+openapi: 3.1.0
+info:
+  title: Marc Chatbot Admin API
+  version: 0.1.0
+  description: 单机器人微信群管理 API。所有业务接口均要求管理员 Bearer Token。
+servers:
+  - url: http://localhost:8080
+security:
+  - bearerAuth: []
+paths:
+  /healthz:
+    get:
+      security: []
+      operationId: health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, const: ok }
+  /api/v1/bot:
+    get:
+      operationId: getBot
+      responses:
+        '200':
+          description: Current bot state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Bot' }
+  /api/v1/bot/bindings:
+    post:
+      operationId: startBinding
+      responses:
+        '201':
+          description: Binding session started
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BindingSession' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/bot/bindings/current:
+    delete:
+      operationId: cancelBinding
+      responses:
+        '204': { description: Binding session cancelled }
+  /api/v1/groups:
+    get:
+      operationId: listGroups
+      parameters:
+        - in: query
+          name: enabled
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Known groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Group' }
+  /api/v1/groups/{groupId}:
+    patch:
+      operationId: updateGroup
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled: { type: boolean }
+      responses:
+        '200':
+          description: Updated group
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Group' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/groups/{groupId}/messages:
+    post:
+      operationId: sendGroupMessage
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content: { type: string, minLength: 1, maxLength: 2000 }
+      responses:
+        '202':
+          description: Existing or newly accepted send request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OutboundMessage' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/messages:
+    get:
+      operationId: listMessages
+      parameters:
+        - in: query
+          name: groupId
+          schema: { type: string }
+        - in: query
+          name: direction
+          schema: { type: string, enum: [inbound, outbound] }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 100 }
+      responses:
+        '200':
+          description: Message history
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Message' }
+  /api/v1/audit-events:
+    get:
+      operationId: listAuditEvents
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 100 }
+      responses:
+        '200':
+          description: Audit history
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AuditEvent' }
+  /api/v1/events:
+    get:
+      operationId: streamEvents
+      description: Server-Sent Events stream. Event types include bot.status, binding.updated, group.updated, message.received, message.sent.
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  parameters:
+    GroupId:
+      in: path
+      name: groupId
+      required: true
+      schema: { type: string }
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Resource state conflict
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Bot:
+      type: object
+      required: [id, status, updatedAt]
+      properties:
+        id: { type: string }
+        publicAccountId: { type: [string, 'null'] }
+        displayName: { type: [string, 'null'] }
+        status: { type: string, enum: [unbound, awaiting_scan, connecting, online, reconnecting, offline, error] }
+        statusReason: { type: [string, 'null'] }
+        qrCode: { type: [string, 'null'], description: Present only during an active binding session }
+        qrExpiresAt: { type: [string, 'null'], format: date-time }
+        lastSeenAt: { type: [string, 'null'], format: date-time }
+        updatedAt: { type: string, format: date-time }
+    BindingSession:
+      type: object
+      required: [id, status, createdAt, expiresAt]
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [pending, scanned, confirmed, expired, cancelled, failed] }
+        qrCode: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        completedAt: { type: [string, 'null'], format: date-time }
+        failureReason: { type: [string, 'null'] }
+    Group:
+      type: object
+      required: [id, providerGroupId, name, enabled, available, discoveredAt, updatedAt]
+      properties:
+        id: { type: string }
+        providerGroupId: { type: string }
+        name: { type: string }
+        memberCount: { type: [integer, 'null'], minimum: 0 }
+        enabled: { type: boolean }
+        available: { type: boolean }
+        discoveredAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Message:
+      type: object
+      required: [id, providerMessageId, groupId, senderId, senderName, direction, messageType, content, occurredAt, receivedAt, processingStatus, selfMessage]
+      properties:
+        id: { type: string }
+        providerMessageId: { type: string }
+        groupId: { type: string }
+        senderId: { type: string }
+        senderName: { type: string }
+        direction: { type: string, enum: [inbound, outbound] }
+        messageType: { type: string, enum: [text, unsupported, system] }
+        content: { type: string }
+        occurredAt: { type: string, format: date-time }
+        receivedAt: { type: string, format: date-time }
+        processingStatus: { type: string, enum: [received, ignored, sent, failed] }
+        selfMessage: { type: boolean }
+    OutboundMessage:
+      type: object
+      required: [id, idempotencyKey, groupId, content, status, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        idempotencyKey: { type: string }
+        groupId: { type: string }
+        content: { type: string }
+        status: { type: string, enum: [pending, sending, succeeded, failed] }
+        providerMessageId: { type: [string, 'null'] }
+        failureReason: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AuditEvent:
+      type: object
+      required: [id, actor, action, targetType, targetId, result, createdAt]
+      properties:
+        id: { type: string }
+        actor: { type: string }
+        action: { type: string }
+        targetType: { type: string }
+        targetId: { type: string }
+        result: { type: string, enum: [success, failure] }
+        detail: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
